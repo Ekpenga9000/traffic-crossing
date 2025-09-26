@@ -1,0 +1,12 @@
+pygame_venv/
+__pycache__/
+*.pyc
+.DS_Store
+env/
+venv/
+.idea/
+.vscode/
+*.egg-info/
+dist/       <|diff_marker|>/build/
+build/
+*.log                       
