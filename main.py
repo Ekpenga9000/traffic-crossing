@@ -58,8 +58,8 @@ class TrafficLightGame:
         
         # Pedestrian traffic light (only red and green, no yellow)
         self.pedestrian_light = TrafficLight(
-            x=center_x,                                        # Center of zebra crossing
-            y=center_y - ROAD_WIDTH//2 - 80,                  # Above the road
+            x=center_x + 80,                                  # Moved horizontally by 5rem (~80px)
+            y=center_y - ROAD_WIDTH//2 - 150,                 # On the side of the road, away from crossing
             orientation='vertical'
         )
         self.pedestrian_light.set_red()  # Start with red (pedestrians wait)
@@ -155,7 +155,7 @@ class TrafficLightGame:
         pedestrian_text = font.render("Pedestrian Crossing Light", True, BLACK)
         pedestrian_rect = pedestrian_text.get_rect(center=(
             self.pedestrian_light.x,
-            self.pedestrian_light.y + 120
+            self.pedestrian_light.y + 140  # Adjusted for side of road position
         ))
         self.screen.blit(pedestrian_text, pedestrian_rect)
     
