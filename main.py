@@ -122,10 +122,10 @@ class TrafficLightGame:
     
     def draw_zebra_crossing(self):
         """Draw the zebra crossing on the road."""
-        # Zebra crossing stripes (white stripes on dark background)
-        stripe_width = 8
-        stripe_spacing = 12
-        num_stripes = self.zebra_crossing_width // stripe_spacing
+        # Zebra crossing stripes (white stripes on dark background) - fewer, broader stripes
+        stripe_height = 20  # Much broader stripes
+        stripe_spacing = 30  # More space between stripes
+        num_stripes = 6     # Reduced number of stripes to fit road width better
         
         # Draw dark background for crossing
         crossing_rect = pygame.Rect(
@@ -136,14 +136,18 @@ class TrafficLightGame:
         )
         pygame.draw.rect(self.screen, BLACK, crossing_rect)
         
-        # Draw white stripes
+        # Calculate starting position to center the stripes
+        total_stripe_area = (num_stripes * stripe_height) + ((num_stripes - 1) * (stripe_spacing - stripe_height))
+        start_y = (SCREEN_HEIGHT // 2) - (total_stripe_area // 2)
+        
+        # Draw white stripes (now horizontal across the road)
         for i in range(num_stripes):
-            stripe_x = self.zebra_crossing_x - self.zebra_crossing_width // 2 + i * stripe_spacing
+            stripe_y = start_y + i * stripe_spacing
             stripe_rect = pygame.Rect(
-                stripe_x,
-                SCREEN_HEIGHT // 2 - ROAD_WIDTH // 2 + 10,
-                stripe_width,
-                ROAD_WIDTH - 20
+                self.zebra_crossing_x - self.zebra_crossing_width // 2 + 10,
+                stripe_y,
+                self.zebra_crossing_width - 20,
+                stripe_height
             )
             pygame.draw.rect(self.screen, WHITE, stripe_rect)
     
