@@ -11,6 +11,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 from src.utils.constants import *
 from src.components.road import Road, Intersection
 from src.components.traffic_light import TrafficLight
+from src.components.car import CarManager
 
 class TrafficLightGame:
     """
@@ -64,6 +65,12 @@ class TrafficLightGame:
         )
         self.pedestrian_light.set_red()  # Start with red (pedestrians wait)
         self.traffic_lights.append(self.pedestrian_light)
+        
+        # Create car manager
+        self.car_manager = CarManager(
+            road_y=center_y,
+            screen_width=SCREEN_WIDTH
+        )
     
     def handle_events(self):
         """Handle game events."""
@@ -95,6 +102,9 @@ class TrafficLightGame:
         # Update traffic lights
         for light in self.traffic_lights:
             light.update(dt)
+        
+        # Update cars
+        self.car_manager.update(dt, self.pedestrian_light, self.zebra_crossing_x, self.zebra_crossing_width)
     
     def draw(self):
         """Draw the game."""
@@ -104,8 +114,14 @@ class TrafficLightGame:
         # Draw the single road
         self.road.draw(self.screen)
         
+        # Draw lane divider (center line)
+        self.draw_lane_divider()
+        
         # Draw zebra crossing
         self.draw_zebra_crossing()
+        
+        # Draw cars
+        self.car_manager.draw(self.screen)
         
         # Draw traffic lights
         for light in self.traffic_lights:
@@ -119,6 +135,21 @@ class TrafficLightGame:
         
         # Update display
         pygame.display.flip()
+    
+    def draw_lane_divider(self):
+        """Draw the center lane divider for two-way traffic."""
+        center_y = SCREEN_HEIGHT // 2
+        dash_length = 20
+        dash_gap = 15
+        dash_width = 3
+        
+        # Draw dashed center line across the entire road
+        for x in range(50, SCREEN_WIDTH - 50, dash_length + dash_gap):
+            # Skip drawing divider in zebra crossing area
+            if not (self.zebra_crossing_x - self.zebra_crossing_width//2 <= x <= 
+                   self.zebra_crossing_x + self.zebra_crossing_width//2):
+                dash_rect = pygame.Rect(x, center_y - dash_width//2, dash_length, dash_width)
+                pygame.draw.rect(self.screen, YELLOW, dash_rect)
     
     def draw_zebra_crossing(self):
         """Draw the zebra crossing on the road."""
@@ -181,10 +212,11 @@ class TrafficLightGame:
         # Instructions
         instructions = [
             "SPACE - Press pedestrian crossing button",
+            f"Cars on road: {self.car_manager.get_car_count()}",
             "ESC - Exit game"
         ]
         
-        y_offset = SCREEN_HEIGHT - 80
+        y_offset = SCREEN_HEIGHT - 100
         for instruction in instructions:
             text = small_font.render(instruction, True, BLACK)
             self.screen.blit(text, (20, y_offset))

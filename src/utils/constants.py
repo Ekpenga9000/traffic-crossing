@@ -25,6 +25,12 @@ ROAD_COLOR = DARK_GRAY
 LANE_MARKER_COLOR = YELLOW
 SIDEWALK_COLOR = LIGHT_GRAY
 
+# Additional colors for car details
+LIGHT_BLUE = (150, 200, 255)
+DARK_BLUE = (0, 0, 139)
+ORANGE = (255, 165, 0)
+PURPLE = (128, 0, 128)
+
 # Traffic light dimensions (for 2-light pedestrian crossing)
 LIGHT_RADIUS = 20
 LIGHT_BOX_WIDTH = 50
