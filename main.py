@@ -139,17 +139,21 @@ class TrafficLightGame:
     def draw_lane_divider(self):
         """Draw the center lane divider for two-way traffic."""
         center_y = SCREEN_HEIGHT // 2
-        dash_length = 20
-        dash_gap = 15
-        dash_width = 3
+        line_width = 3
         
-        # Draw dashed center line across the entire road
-        for x in range(50, SCREEN_WIDTH - 50, dash_length + dash_gap):
-            # Skip drawing divider in zebra crossing area
-            if not (self.zebra_crossing_x - self.zebra_crossing_width//2 <= x <= 
-                   self.zebra_crossing_x + self.zebra_crossing_width//2):
-                dash_rect = pygame.Rect(x, center_y - dash_width//2, dash_length, dash_width)
-                pygame.draw.rect(self.screen, YELLOW, dash_rect)
+        # Draw solid center line across the entire road
+        # Left segment (before zebra crossing)
+        left_end = self.zebra_crossing_x - self.zebra_crossing_width//2
+        if left_end > 50:
+            pygame.draw.rect(self.screen, YELLOW, 
+                           (50, center_y - line_width//2, left_end - 50, line_width))
+        
+        # Right segment (after zebra crossing)  
+        right_start = self.zebra_crossing_x + self.zebra_crossing_width//2
+        if right_start < SCREEN_WIDTH - 50:
+            pygame.draw.rect(self.screen, YELLOW,
+                           (right_start, center_y - line_width//2, 
+                            SCREEN_WIDTH - 50 - right_start, line_width))
     
     def draw_zebra_crossing(self):
         """Draw the zebra crossing on the road."""
@@ -186,11 +190,11 @@ class TrafficLightGame:
         """Draw label for the pedestrian traffic light."""
         font = pygame.font.Font(None, 28)
         
-        # Pedestrian traffic light label
+        # Pedestrian traffic light label - positioned to the right side
         pedestrian_text = font.render("Pedestrian Crossing Light", True, BLACK)
-        pedestrian_rect = pedestrian_text.get_rect(center=(
-            self.pedestrian_light.x,
-            self.pedestrian_light.y + 140  # Adjusted for side of road position
+        pedestrian_rect = pedestrian_text.get_rect(midleft=(
+            self.pedestrian_light.x + 60,  # To the right of the traffic light
+            self.pedestrian_light.y        # Vertically centered with the traffic light
         ))
         self.screen.blit(pedestrian_text, pedestrian_rect)
     

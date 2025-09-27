@@ -59,7 +59,7 @@ class Car:
         ]
         return random.choice(colors)
     
-    def update(self, dt, traffic_light, zebra_crossing_x, zebra_crossing_width):
+    def update(self, dt, traffic_light, zebra_crossing_x, zebra_crossing_width, other_cars=None):
         """
         Update car position and behavior.
         
@@ -68,7 +68,11 @@ class Car:
             traffic_light: Traffic light object to check state
             zebra_crossing_x (int): X position of zebra crossing center
             zebra_crossing_width (int): Width of zebra crossing
+            other_cars (list): List of other cars to check for collisions
         """
+        if other_cars is None:
+            other_cars = []
+            
         # Check if car should stop at zebra crossing
         crossing_left = zebra_crossing_x - zebra_crossing_width // 2
         crossing_right = zebra_crossing_x + zebra_crossing_width // 2
@@ -89,8 +93,31 @@ class Car:
         # Check if pedestrians are crossing (green pedestrian light)
         pedestrians_crossing = traffic_light.is_green()
         
-        # Stop if pedestrians are crossing and car is approaching
-        if pedestrians_crossing and approaching_crossing:
+        # Check for car-to-car collision (stop behind other cars)
+        car_ahead = False
+        safe_distance = 50  # Minimum distance to maintain from car ahead
+        
+        for other_car in other_cars:
+            if other_car == self:  # Skip self
+                continue
+                
+            # Check if other car is in the same lane and ahead of this car
+            if abs(other_car.y - self.y) < 15:  # Same lane (within 15 pixels)
+                if self.direction == 'right':
+                    # Check if other car is ahead (to the right) and close
+                    if (other_car.rect.left > self.rect.right and 
+                        other_car.rect.left - self.rect.right < safe_distance):
+                        car_ahead = True
+                        break
+                elif self.direction == 'left':
+                    # Check if other car is ahead (to the left) and close
+                    if (other_car.rect.right < self.rect.left and 
+                        self.rect.left - other_car.rect.right < safe_distance):
+                        car_ahead = True
+                        break
+        
+        # Stop if pedestrians are crossing and approaching, OR if there's a car ahead
+        if (pedestrians_crossing and approaching_crossing) or car_ahead:
             self.is_stopped = True
             self.speed = 0
         else:
@@ -205,9 +232,9 @@ class CarManager:
             zebra_crossing_x (int): X position of zebra crossing center
             zebra_crossing_width (int): Width of zebra crossing
         """
-        # Update existing cars
+        # Update existing cars with collision detection
         for car in self.cars[:]:  # Use slice to avoid modification during iteration
-            car.update(dt, traffic_light, zebra_crossing_x, zebra_crossing_width)
+            car.update(dt, traffic_light, zebra_crossing_x, zebra_crossing_width, self.cars)
             
             # Remove cars that are off screen
             if car.is_off_screen(self.screen_width, 600):  # Assuming height of 600
