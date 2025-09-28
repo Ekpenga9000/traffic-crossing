@@ -3,6 +3,7 @@ Car component for the traffic light logic gate game
 """
 import pygame
 import random
+import os
 from ..utils.constants import *
 
 class Car:
@@ -11,7 +12,7 @@ class Car:
     Used to demonstrate the effects of logic gate outputs on traffic flow.
     """
     
-    def __init__(self, x, y, direction='right', speed=2, color=None):
+    def __init__(self, x, y, direction='right', speed=2, car_type=None):
         """
         Initialize a car.
         
@@ -20,7 +21,7 @@ class Car:
             y (int): Initial Y position
             direction (str): Direction of travel ('left', 'right', 'up', 'down')
             speed (int): Speed of the car in pixels per frame
-            color (tuple): RGB color tuple, random if None
+            car_type (str): Type of car sprite to use, random if None
         """
         self.x = x
         self.y = y
@@ -28,14 +29,18 @@ class Car:
         self.speed = speed
         self.original_speed = speed
         
-        # Car appearance
-        self.width = 40
-        self.height = 20
-        self.color = color if color else self.random_car_color()
+        # Car appearance (2.25x bigger total: 1.5 * 1.5)
+        self.width = 90  # 60 * 1.5 = 90 (originally 40 * 2.25)
+        self.height = 45  # 30 * 1.5 = 45 (originally 20 * 2.25)
+        self.car_type = car_type if car_type else self.random_car_type()
+        self.color = self.random_car_color()  # Fallback color
         
         # Car state
         self.is_stopped = False
         self.stop_position = None
+        
+        # Load car sprite
+        self.load_sprite()
         
         # Calculate car rectangle based on direction
         if direction in ['left', 'right']:
@@ -43,8 +48,18 @@ class Car:
         else:  # up, down
             self.rect = pygame.Rect(x - self.width // 2, y, self.height, self.width)
     
+    def random_car_type(self):
+        """Select a random car type from available PixelCars sprites."""
+        car_types = [
+            '370z.png', '500x.png', 'A4.png', 'Beetle.png', 'Corolla.png', 
+            'DB9.png', 'F1.png', 'FType.png', 'Giulia.png', 'Giulietta.png',
+            'Jimny.png', 'Logan.png', 'Polo.png', 'RSeries.png', 'Sandero.png',
+            'Tipo.png', 'VNL300.png', 'Viper.png'
+        ]
+        return random.choice(car_types)
+    
     def random_car_color(self):
-        """Generate a random car color."""
+        """Generate a random car color for fallback."""
         colors = [
             (255, 100, 100),  # Red
             (100, 100, 255),  # Blue
@@ -58,6 +73,46 @@ class Car:
             (100, 50, 0),     # Brown
         ]
         return random.choice(colors)
+    
+    def load_sprite(self):
+        """Load the car sprite from the PixelCars assets folder."""
+        try:
+            # Path to PixelCars sprites
+            sprite_path = os.path.join("assets", "sprites", "cars", "PixelCars", "sprite", self.car_type)
+            
+            if os.path.exists(sprite_path):
+                # Load the sprite
+                original_sprite = pygame.image.load(sprite_path).convert_alpha()
+                
+                # Rotate the sprite by 90 degrees to the right (clockwise)
+                rotated_sprite = pygame.transform.rotate(original_sprite, -90)
+                
+                # Make the sprite 2x larger
+                original_size = rotated_sprite.get_size()
+                enlarged_sprite = pygame.transform.scale(rotated_sprite, (original_size[0] * 2, original_size[1] * 2))
+                
+                # Scale sprite to fit our car dimensions while maintaining aspect ratio
+                sprite_rect = enlarged_sprite.get_rect()
+                scale_factor = min(self.width / sprite_rect.width, self.height / sprite_rect.height)
+                
+                if scale_factor != 1.0:
+                    new_width = int(sprite_rect.width * scale_factor)
+                    new_height = int(sprite_rect.height * scale_factor)
+                    self.sprite = pygame.transform.scale(enlarged_sprite, (new_width, new_height))
+                else:
+                    self.sprite = enlarged_sprite
+                
+                # Update car dimensions to match sprite
+                self.width = self.sprite.get_width()
+                self.height = self.sprite.get_height()
+                
+            else:
+                print(f"PixelCars sprite not found: {sprite_path}")
+                self.sprite = None
+                
+        except Exception as e:
+            print(f"Error loading PixelCars sprite: {e}")
+            self.sprite = None
     
     def update(self, dt, traffic_light, zebra_crossing_x, zebra_crossing_width, other_cars=None):
         """
@@ -140,47 +195,50 @@ class Car:
     
     def draw(self, surface):
         """
-        Draw the car on the surface with improved top-down view.
+        Draw the car on the surface using sprite or fallback to rectangle.
         
         Args:
             surface (pygame.Surface): Surface to draw on
         """
-        # Draw main car body
-        pygame.draw.rect(surface, self.color, self.rect, border_radius=3)
-        pygame.draw.rect(surface, BLACK, self.rect, 2, border_radius=3)  # Border
-        
-        # Draw windshield (lighter color at the front)
-        windshield_color = tuple(min(255, c + 40) for c in self.color)  # Lighter shade
-        if self.direction == 'right':
-            windshield_rect = pygame.Rect(self.rect.right - 8, self.rect.y + 3, 6, self.rect.height - 6)
-        else:  # Moving left
-            windshield_rect = pygame.Rect(self.rect.x + 2, self.rect.y + 3, 6, self.rect.height - 6)
-        pygame.draw.rect(surface, windshield_color, windshield_rect, border_radius=2)
-        
-        # Draw side windows
-        window_color = (150, 200, 255)  # Light blue for windows
-        window_height = 4
-        window_y_top = self.rect.y + 2
-        window_y_bottom = self.rect.bottom - 6
-        
-        # Top and bottom windows
-        window_rect_top = pygame.Rect(self.rect.x + 8, window_y_top, self.rect.width - 16, window_height)
-        window_rect_bottom = pygame.Rect(self.rect.x + 8, window_y_bottom, self.rect.width - 16, window_height)
-        pygame.draw.rect(surface, window_color, window_rect_top)
-        pygame.draw.rect(surface, window_color, window_rect_bottom)
-        
-        # Draw headlights/taillights
-        light_color = WHITE if self.direction == 'right' else RED  # White for headlights, red for taillights
-        light_size = 3
-        
-        if self.direction == 'right':  # Moving right - headlights on the right
-            light_x = self.rect.right - 2
-        else:  # Moving left - headlights on the left  
-            light_x = self.rect.x - 1
+        if self.sprite:
+            # Draw the actual car sprite
+            current_sprite = self.sprite
             
-        # Two lights (top and bottom)
-        pygame.draw.circle(surface, light_color, (light_x, self.rect.y + 4), light_size)
-        pygame.draw.circle(surface, light_color, (light_x, self.rect.bottom - 4), light_size)
+            # Flip sprite horizontally if moving left
+            if self.direction == 'left':
+                current_sprite = pygame.transform.flip(self.sprite, True, False)
+            
+            # Center the sprite in the car's rectangle
+            sprite_rect = current_sprite.get_rect()
+            sprite_rect.center = self.rect.center
+            
+            surface.blit(current_sprite, sprite_rect)
+            
+        else:
+            # Fallback to drawing rectangles if sprite fails to load
+            # Draw main car body
+            pygame.draw.rect(surface, self.color, self.rect, border_radius=4)
+            pygame.draw.rect(surface, BLACK, self.rect, 2, border_radius=4)  # Border
+            
+            # Draw windshield (lighter color at the front)
+            windshield_color = tuple(min(255, c + 40) for c in self.color)  # Lighter shade
+            if self.direction == 'right':
+                windshield_rect = pygame.Rect(self.rect.right - 12, self.rect.y + 4, 9, self.rect.height - 8)
+            else:  # Moving left
+                windshield_rect = pygame.Rect(self.rect.x + 3, self.rect.y + 4, 9, self.rect.height - 8)
+            pygame.draw.rect(surface, windshield_color, windshield_rect, border_radius=3)
+            
+            # Draw side windows
+            window_color = (150, 200, 255)  # Light blue for windows
+            window_height = 6  # Scaled up from 4
+            window_y_top = self.rect.y + 3
+            window_y_bottom = self.rect.bottom - 9
+            
+            # Top and bottom windows
+            window_rect_top = pygame.Rect(self.rect.x + 12, window_y_top, self.rect.width - 24, window_height)
+            window_rect_bottom = pygame.Rect(self.rect.x + 12, window_y_bottom, self.rect.width - 24, window_height)
+            pygame.draw.rect(surface, window_color, window_rect_top)
+            pygame.draw.rect(surface, window_color, window_rect_bottom)
     
     def is_off_screen(self, screen_width, screen_height):
         """
@@ -260,7 +318,7 @@ class CarManager:
             y = self.road_y - 25  # Top half of the road
             direction = 'left'
         
-        # Create new car
+        # Create new car (car_type will be selected randomly)
         new_car = Car(x, y, direction, random.randint(2, 4))
         self.cars.append(new_car)
     

@@ -10,8 +10,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.utils.constants import *
 from src.components.road import Road, Intersection
-from src.components.traffic_light import TrafficLight
+from src.components.crossing_guard import CrossingGuard
 from src.components.car import CarManager
+from src.components.monster import MonsterManager
+from src.components.pedestrian import PedestrianManager
 
 class TrafficLightGame:
     """
@@ -41,11 +43,11 @@ class TrafficLightGame:
         center_x = SCREEN_WIDTH // 2
         center_y = SCREEN_HEIGHT // 2
         
-        # Single horizontal road (east-west) with zebra crossing
+        # Single horizontal road (east-west) with zebra crossing - extends full viewport width
         self.road = Road(
-            start_x=50, 
+            start_x=0, 
             start_y=center_y,
-            end_x=SCREEN_WIDTH - 50,
+            end_x=SCREEN_WIDTH,
             end_y=center_y,
             num_lanes=2
         )
@@ -57,19 +59,32 @@ class TrafficLightGame:
         # Create traffic light
         self.traffic_lights = []
         
-        # Pedestrian traffic light (only red and green, no yellow)
-        self.pedestrian_light = TrafficLight(
+        # Crossing guard (replaces pedestrian traffic light) - positioned closer to the road
+        self.crossing_guard = CrossingGuard(
             x=center_x + 80,                                  # Moved horizontally by 5rem (~80px)
-            y=center_y - ROAD_WIDTH//2 - 150,                 # On the side of the road, away from crossing
-            orientation='vertical'
+            y=center_y - ROAD_WIDTH//2 - 60                   # Much closer to the road edge
         )
-        self.pedestrian_light.set_red()  # Start with red (pedestrians wait)
-        self.traffic_lights.append(self.pedestrian_light)
+        self.crossing_guard.set_stop()  # Start with stop (pedestrians wait)
+        self.traffic_lights.append(self.crossing_guard)  # Keep compatibility with existing code
         
         # Create car manager
         self.car_manager = CarManager(
             road_y=center_y,
             screen_width=SCREEN_WIDTH
+        )
+        
+        # Create monster manager
+        self.monster_manager = MonsterManager(
+            road_y=center_y,
+            screen_width=SCREEN_WIDTH,
+            screen_height=SCREEN_HEIGHT
+        )
+        
+        # Create pedestrian manager
+        self.pedestrian_manager = PedestrianManager(
+            road_y=center_y,
+            screen_width=SCREEN_WIDTH,
+            screen_height=SCREEN_HEIGHT
         )
     
     def handle_events(self):
@@ -85,12 +100,12 @@ class TrafficLightGame:
                     self.toggle_traffic_lights()
     
     def toggle_traffic_lights(self):
-        """Toggle the pedestrian traffic light state."""
-        # Simple toggle between red and green for pedestrian crossing
-        if self.pedestrian_light.is_red():
-            self.pedestrian_light.set_green()  # Allow pedestrians to cross
+        """Toggle the crossing guard state."""
+        # Simple toggle between stop and go for pedestrian crossing
+        if self.crossing_guard.is_red():
+            self.crossing_guard.set_green()  # Allow pedestrians to cross
         else:
-            self.pedestrian_light.set_red()    # Stop pedestrians
+            self.crossing_guard.set_red()     # Stop pedestrians
     
     def update(self, dt):
         """
@@ -104,7 +119,13 @@ class TrafficLightGame:
             light.update(dt)
         
         # Update cars
-        self.car_manager.update(dt, self.pedestrian_light, self.zebra_crossing_x, self.zebra_crossing_width)
+        self.car_manager.update(dt, self.crossing_guard, self.zebra_crossing_x, self.zebra_crossing_width)
+        
+        # Update monsters with traffic light awareness
+        self.monster_manager.update(dt, self.crossing_guard)
+        
+        # Update pedestrians
+        self.pedestrian_manager.update(dt)
     
     def draw(self):
         """Draw the game."""
@@ -120,10 +141,16 @@ class TrafficLightGame:
         # Draw zebra crossing
         self.draw_zebra_crossing()
         
-        # Draw cars
+                # Draw cars
         self.car_manager.draw(self.screen)
         
-        # Draw traffic lights
+        # Draw pedestrians
+        self.pedestrian_manager.draw(self.screen)
+        
+        # Draw monsters
+        self.monster_manager.draw(self.screen)
+        
+        # Draw traffic lights (including crossing guard)
         for light in self.traffic_lights:
             light.draw(self.screen)
         
@@ -187,16 +214,16 @@ class TrafficLightGame:
             pygame.draw.rect(self.screen, WHITE, stripe_rect)
     
     def draw_traffic_light_labels(self):
-        """Draw label for the pedestrian traffic light."""
+        """Draw label for the crossing guard."""
         font = pygame.font.Font(None, 28)
         
-        # Pedestrian traffic light label - positioned to the right side
-        pedestrian_text = font.render("Pedestrian Crossing Light", True, BLACK)
-        pedestrian_rect = pedestrian_text.get_rect(midleft=(
-            self.pedestrian_light.x + 60,  # To the right of the traffic light
-            self.pedestrian_light.y        # Vertically centered with the traffic light
+        # Crossing guard label - positioned to the right side
+        guard_text = font.render("Crossing Guard", True, BLACK)
+        guard_rect = guard_text.get_rect(midleft=(
+            self.crossing_guard.x + 60,  # To the right of the crossing guard
+            self.crossing_guard.y        # Vertically centered with the crossing guard
         ))
-        self.screen.blit(pedestrian_text, pedestrian_rect)
+        self.screen.blit(guard_text, guard_rect)
     
     def draw_instructions(self):
         """Draw game instructions on screen."""
@@ -204,7 +231,7 @@ class TrafficLightGame:
         small_font = pygame.font.Font(None, 24)
         
         # Title
-        title = font.render("Pedestrian Crossing Logic Gate Demo", True, BLACK)
+        title = font.render("Crossing Guard Logic Gate Demo", True, BLACK)
         title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, 50))
         self.screen.blit(title, title_rect)
         
@@ -215,7 +242,7 @@ class TrafficLightGame:
         
         # Instructions
         instructions = [
-            "SPACE - Press pedestrian crossing button",
+            "SPACE - Signal crossing guard to change",
             f"Cars on road: {self.car_manager.get_car_count()}",
             "ESC - Exit game"
         ]
