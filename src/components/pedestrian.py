@@ -42,9 +42,21 @@ class Pedestrian:
         self.right_boundary = SCREEN_WIDTH + 50  # Can go slightly off-screen
         
         # Current state
-        self.state = 'walking'  # 'walking', 'idle'
+        self.state = 'walking'  # 'walking', 'idle', 'wanting_to_cross', 'waiting_to_cross', 'crossing'
         self.idle_timer = 0
         self.idle_duration = random.randint(60, 180)  # Random idle time
+        
+        # Crossing behavior
+        self.wants_to_cross = False
+        self.crossing_wait_timer = 0
+        self.crossing_target_y = 0  # Target Y position when crossing
+        self.original_sidewalk_y = y  # Remember original sidewalk position
+        self.is_waiting_at_crossing = False  # Track if waiting at zebra crossing
+        
+        # Zebra crossing navigation
+        self.zebra_crossing_x = 0  # Will be set by manager
+        self.zebra_crossing_width = 0  # Will be set by manager
+        self.crossing_edge_tolerance = 10  # How close to crossing edge to stop
         
         # Load pedestrian sprites
         self.load_sprites()
@@ -101,6 +113,8 @@ class Pedestrian:
                         
                         # Scale the individual frame to match pedestrian dimensions
                         scaled_frame = pygame.transform.scale(frame_surface, (self.width, self.height))
+                        
+                        # Store original frame for color changes
                         frames.append(scaled_frame)
                     
                     self.sprites[animation] = frames
@@ -113,8 +127,8 @@ class Pedestrian:
             
         except Exception as e:
             print(f"Error loading dino sprites: {e}")
-            # Fallback to placeholder color - green for dinos
-            self.color = (50, 200, 100)  # Green for dinos
+            # Fallback to placeholder color - blue for dinos
+            self.color = (100, 150, 255)  # Blue for dinos
             self.sprites = None
     
     def update(self, dt):
@@ -142,8 +156,8 @@ class Pedestrian:
             else:  # direction == 'left'
                 self.x -= self.speed
             
-            # Randomly decide to stop and idle
-            if random.randint(1, 300) == 1:  # 1 in 300 chance each frame
+            # Randomly decide to go idle (crossing desire is now managed by PedestrianManager)
+            if random.randint(1, 300) == 1:  # 1 in 300 chance to go idle
                 self.state = 'idle'
                 self.idle_timer = 0
                 if self.sprites and 'idle' in self.sprites:
@@ -157,9 +171,83 @@ class Pedestrian:
                 if self.sprites and 'walk' in self.sprites:
                     self.current_animation = 'walk'
         
+        elif self.state == 'wanting_to_cross':
+            # Move toward the zebra crossing
+            crossing_distance = abs(self.x - self.zebra_crossing_x)
+            
+            if crossing_distance > self.crossing_edge_tolerance:
+                # Move toward zebra crossing
+                if self.x < self.zebra_crossing_x:
+                    self.x += self.speed
+                    self.direction = 'right'
+                else:
+                    self.x -= self.speed
+                    self.direction = 'left'
+                
+                # Use walk animation while moving to crossing
+                if self.sprites and 'walk' in self.sprites:
+                    self.current_animation = 'walk'
+            else:
+                # Reached the zebra crossing - start waiting
+                self.state = 'waiting_to_cross'
+                self.is_waiting_at_crossing = True
+                if self.sprites and 'idle' in self.sprites:
+                    self.current_animation = 'idle'
+        
+        elif self.state == 'waiting_to_cross':
+            # Just wait at the crossing edge (yellow state handled in draw method)
+            pass
+        
+        elif self.state == 'crossing':
+            # Move vertically across the road to the opposite sidewalk
+            if abs(self.y - self.crossing_target_y) > 2:  # Still crossing
+                if self.y < self.crossing_target_y:
+                    self.y += self.speed * 1.2  # Slightly faster crossing speed
+                else:
+                    self.y -= self.speed * 1.2
+                
+                # Use walk animation while crossing
+                if self.sprites and 'walk' in self.sprites:
+                    self.current_animation = 'walk'
+            else:
+                # Finished crossing - resume normal walking on new sidewalk
+                self.y = self.crossing_target_y  # Snap to exact position
+                self.state = 'walking'
+                self.wants_to_cross = False
+                self.is_waiting_at_crossing = False
+                
+                # Choose a new random direction to walk on the new sidewalk
+                self.direction = random.choice(['left', 'right'])
+                
+                if self.sprites and 'walk' in self.sprites:
+                    self.current_animation = 'walk'
+        
         # Update rectangle position
         self.rect.centerx = self.x
         self.rect.centery = self.y
+        
+        return True  # Continue existing (don't remove)
+    
+    def is_off_screen(self):
+        """
+        Check if pedestrian is off screen and should be removed.
+        
+        Returns:
+            bool: True if off screen
+        """
+        return self.x < self.left_boundary or self.x > self.right_boundary
+    
+    def can_cross(self, crossing_guard_state):
+        """
+        Check if pedestrian can cross based on crossing guard state.
+        
+        Args:
+            crossing_guard_state (str): Current state of crossing guard
+            
+        Returns:
+            bool: True if pedestrian can cross
+        """
+        return crossing_guard_state == 'walk'  # Only cross when guard shows 'walk'
     
     def draw(self, surface):
         """
@@ -172,7 +260,19 @@ class Pedestrian:
             # Draw dino sprite with animation
             frames = self.sprites[self.current_animation]
             if frames:
-                current_sprite = frames[self.animation_frame % len(frames)]
+                current_sprite = frames[self.animation_frame % len(frames)].copy()
+                
+                # Apply color tint based on state
+                if self.is_waiting_at_crossing:
+                    # Apply yellow tint when waiting at crossing
+                    yellow_overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+                    yellow_overlay.fill((255, 255, 100, 128))  # Yellow with transparency
+                    current_sprite.blit(yellow_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
+                else:
+                    # Apply blue tint for normal state
+                    blue_overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+                    blue_overlay.fill((100, 150, 255, 128))  # Light blue with transparency
+                    current_sprite.blit(blue_overlay, (0, 0), special_flags=pygame.BLEND_MULT)
                 
                 # Flip sprite horizontally if moving left
                 if self.direction == 'left':
@@ -222,7 +322,7 @@ class PedestrianManager:
     Manages pedestrians walking on the sidewalk beside the road.
     """
     
-    def __init__(self, road_y, screen_width, screen_height):
+    def __init__(self, road_y, screen_width, screen_height, zebra_crossing_x=None, zebra_crossing_width=None):
         """
         Initialize the pedestrian manager.
         
@@ -230,13 +330,19 @@ class PedestrianManager:
             road_y (int): Y position of the road center
             screen_width (int): Width of the screen
             screen_height (int): Height of the screen
+            zebra_crossing_x (int): X position of the zebra crossing center
+            zebra_crossing_width (int): Width of the zebra crossing
         """
         self.road_y = road_y
         self.screen_width = screen_width
         self.screen_height = screen_height
+        self.zebra_crossing_x = zebra_crossing_x or screen_width // 2
+        self.zebra_crossing_width = zebra_crossing_width or 100
         
-        # Sidewalk area is higher up, further from the road
-        self.sidewalk_y = road_y - 140  # 140 pixels above the road center (lifted higher)
+        # Sidewalk areas
+        self.top_sidewalk_y = road_y - 140  # Top sidewalk
+        self.bottom_sidewalk_y = road_y + 140  # Bottom sidewalk
+        self.sidewalk_y = self.top_sidewalk_y  # Default spawn location
         
         # List of active pedestrians
         self.pedestrians = []
@@ -244,6 +350,10 @@ class PedestrianManager:
         # Spawn timing
         self.spawn_timer = 0
         self.spawn_interval = random.randint(120, 300)  # 2-5 seconds at 60 FPS
+        
+        # Crossing timer - make pedestrians want to cross every 5 seconds
+        self.crossing_timer = 0
+        self.crossing_interval = 300  # 5 seconds at 60 FPS
         
         # Create initial pedestrians
         self.spawn_initial_pedestrians()
@@ -265,18 +375,23 @@ class PedestrianManager:
             x = self.screen_width + 30
             direction = 'left'
         
-        y = self.sidewalk_y
+        # Randomly choose which sidewalk to spawn on
+        y = random.choice([self.top_sidewalk_y, self.bottom_sidewalk_y])
         speed = random.uniform(0.5, 1.2)  # Random walking speed
         
         pedestrian = Pedestrian(x, y, direction, speed)
+        # Set zebra crossing coordinates
+        pedestrian.zebra_crossing_x = self.zebra_crossing_x
+        pedestrian.zebra_crossing_width = self.zebra_crossing_width
         self.pedestrians.append(pedestrian)
     
-    def update(self, dt):
+    def update(self, dt, crossing_guard_state='stop'):
         """
         Update all pedestrians.
         
         Args:
             dt (float): Delta time since last frame
+            crossing_guard_state (str): Current crossing guard state
         """
         # Update spawn timer
         self.spawn_timer += 1
@@ -285,12 +400,29 @@ class PedestrianManager:
             self.spawn_timer = 0
             self.spawn_interval = random.randint(120, 300)  # New random interval
         
+        # Update crossing timer - make a pedestrian want to cross every 5 seconds
+        self.crossing_timer += 1
+        if self.crossing_timer >= self.crossing_interval:
+            self.trigger_crossing_desire()
+            self.crossing_timer = 0
+        
         # Update all pedestrians
         for pedestrian in self.pedestrians[:]:  # Use slice copy for safe removal
-            pedestrian.update(dt)
+            # Allow crossing if guard permits and pedestrian is waiting
+            if pedestrian.state == 'waiting_to_cross' and pedestrian.can_cross(crossing_guard_state):
+                pedestrian.state = 'crossing'
+                pedestrian.is_waiting_at_crossing = False  # No longer waiting
+                # Set target to opposite sidewalk
+                if pedestrian.y < self.road_y:  # Currently on top sidewalk
+                    pedestrian.crossing_target_y = self.bottom_sidewalk_y
+                else:  # Currently on bottom sidewalk
+                    pedestrian.crossing_target_y = self.top_sidewalk_y
+                if pedestrian.sprites and 'walk' in pedestrian.sprites:
+                    pedestrian.current_animation = 'walk'
             
-            # Remove pedestrians that are off screen
-            if pedestrian.is_off_screen():
+            # Update pedestrian
+            if not pedestrian.update(dt):
+                # Remove pedestrian if update returns False (off-screen)
                 self.pedestrians.remove(pedestrian)
     
     def draw(self, surface):
@@ -302,6 +434,22 @@ class PedestrianManager:
         """
         for pedestrian in self.pedestrians:
             pedestrian.draw(surface)
+    
+    def trigger_crossing_desire(self):
+        """
+        Make a pedestrian from the top sidewalk want to cross to the bottom.
+        """
+        # Find pedestrians on top sidewalk who are currently walking normally
+        top_pedestrians = [
+            p for p in self.pedestrians 
+            if p.y < self.road_y and p.state == 'walking' and not p.wants_to_cross
+        ]
+        
+        if top_pedestrians:
+            # Choose a random pedestrian from the top sidewalk
+            chosen_pedestrian = random.choice(top_pedestrians)
+            chosen_pedestrian.wants_to_cross = True
+            chosen_pedestrian.state = 'wanting_to_cross'
     
     def get_pedestrians(self):
         """Get list of all pedestrians."""

@@ -84,7 +84,9 @@ class TrafficLightGame:
         self.pedestrian_manager = PedestrianManager(
             road_y=center_y,
             screen_width=SCREEN_WIDTH,
-            screen_height=SCREEN_HEIGHT
+            screen_height=SCREEN_HEIGHT,
+            zebra_crossing_x=self.zebra_crossing_x,
+            zebra_crossing_width=self.zebra_crossing_width
         )
     
     def handle_events(self):
@@ -124,8 +126,9 @@ class TrafficLightGame:
         # Update monsters with traffic light awareness
         self.monster_manager.update(dt, self.crossing_guard)
         
-        # Update pedestrians
-        self.pedestrian_manager.update(dt)
+        # Update pedestrians with crossing guard state
+        crossing_guard_state = 'walk' if self.crossing_guard.is_green() else 'stop'
+        self.pedestrian_manager.update(dt, crossing_guard_state)
     
     def draw(self):
         """Draw the game."""
@@ -144,15 +147,15 @@ class TrafficLightGame:
                 # Draw cars
         self.car_manager.draw(self.screen)
         
-        # Draw pedestrians
-        self.pedestrian_manager.draw(self.screen)
-        
         # Draw monsters
         self.monster_manager.draw(self.screen)
         
         # Draw traffic lights (including crossing guard)
         for light in self.traffic_lights:
             light.draw(self.screen)
+        
+        # Draw pedestrians (on top of crossing guard)
+        self.pedestrian_manager.draw(self.screen)
         
         # Draw labels for traffic lights
         self.draw_traffic_light_labels()
