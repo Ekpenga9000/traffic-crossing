@@ -65,7 +65,7 @@ class CrossingGuard:
                 self.sprites['walk2'] = self.sprite_sheet.subsurface(pygame.Rect(sprite_size * 2, 0, sprite_size, sprite_size))
                 
                 # Use idle for stop state, walking for go state
-                self.sprites['stop'] = self.sprites['idle']
+                self.sprites['stop'] = self.sprites['walk1']
                 self.sprites['go1'] = self.sprites['walk1'] 
                 self.sprites['go2'] = self.sprites['walk2']
                 

@@ -10,18 +10,14 @@ class GameState:
     Players lose lives when pedestrians cross while the monster is visible.
     """
     
-    def __init__(self, initial_lives=3):
+    def __init__(self):
         """
-        Initialize the game state.
-        
-        Args:
-            initial_lives (int): Number of lives to start with (default: 3)
+        Initialize the game state for single-chance gameplay.
         """
-        self.initial_lives = initial_lives
-        self.lives = initial_lives
         self.score = 0
         self.game_over = False
         self.game_won = False
+        self.game_over_reason = None  # Track the reason for game over
         
         # Font for displaying text
         pygame.font.init()
@@ -42,19 +38,16 @@ class GameState:
     
     def lose_life(self, reason="Unknown"):
         """
-        Remove one life from the player.
+        Trigger immediate game over (single-chance gameplay).
         
         Args:
-            reason (str): Reason for losing life (for debugging/feedback)
+            reason (str): Reason for game over (for debugging/feedback)
         """
         if not self.game_over:
-            self.lives -= 1
+            self.game_over = True
+            self.game_over_reason = reason
             self.life_lost_timer = self.life_lost_duration
-            print(f"Life lost! Reason: {reason}. Lives remaining: {self.lives}")
-            
-            if self.lives <= 0:
-                self.game_over = True
-                print("Game Over! No lives remaining.")
+            print(f"Game Over! Reason: {reason}")
     
     def add_score(self, points):
         """
@@ -173,10 +166,10 @@ class GameState:
     
     def reset_game(self):
         """Reset the game to initial state."""
-        self.lives = self.initial_lives
         self.score = 0
         self.game_over = False
         self.game_won = False
+        self.game_over_reason = None
         self.pedestrians_crossed_safely = 0
         self.total_crossings_attempted = 0
         self.life_lost_timer = 0
@@ -187,10 +180,6 @@ class GameState:
     def is_game_over(self):
         """Check if the game is over."""
         return self.game_over
-    
-    def get_lives(self):
-        """Get current number of lives."""
-        return self.lives
     
     def get_score(self):
         """Get current score."""
@@ -203,22 +192,16 @@ class GameState:
         Args:
             surface (pygame.Surface): Surface to draw on
         """
-        # Draw lives counter
-        lives_text = f"Lives: {self.lives}"
-        lives_color = RED if self.life_lost_timer > 0 else WHITE
-        lives_surface = self.font.render(lives_text, True, lives_color)
-        surface.blit(lives_surface, (10, 10))
-        
-        # Draw score
+        # Draw score (moved up to replace lives position)
         score_text = f"Score: {self.score}"
         score_surface = self.font.render(score_text, True, WHITE)
-        surface.blit(score_surface, (10, 50))
-        
-        # Draw safe crossings counter
+        surface.blit(score_surface, (10, 10))
+
+        # Draw safe crossings counter (moved up)
         crossings_text = f"Safe Crossings: {self.pedestrians_crossed_safely}"
         crossings_surface = self.font.render(crossings_text, True, GREEN)
-        surface.blit(crossings_surface, (10, 90))
-        
+        surface.blit(crossings_surface, (10, 50))
+
         # Draw game over screen
         if self.game_over:
             # Semi-transparent overlay
@@ -226,28 +209,31 @@ class GameState:
             overlay.set_alpha(128)
             overlay.fill(BLACK)
             surface.blit(overlay, (0, 0))
-            
+
             # Game over text
             game_over_text = "GAME OVER"
             game_over_surface = self.big_font.render(game_over_text, True, RED)
             game_over_rect = game_over_surface.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 - 50))
             surface.blit(game_over_surface, game_over_rect)
-            
+
             # Final score
             final_score_text = f"Final Score: {self.score}"
             score_surface = self.font.render(final_score_text, True, WHITE)
             score_rect = score_surface.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 10))
             surface.blit(score_surface, score_rect)
-            
+
             # Restart instruction
             restart_text = "Press SPACE to restart or ESC to quit"
             restart_surface = self.font.render(restart_text, True, WHITE)
             restart_rect = restart_surface.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 50))
             surface.blit(restart_surface, restart_rect)
-        
-        # Draw flashing warning when life is lost
+
+        # Draw flashing warning when collision detected (different messages based on reason)
         if self.life_lost_timer > 0 and self.life_lost_timer % 10 < 5:  # Flash effect
-            warning_text = "DANGER! Pedestrian crossed while monster was visible!"
+            if self.game_over_reason and "crossing guard" in self.game_over_reason.lower():
+                warning_text = "GAME OVER! Pedestrian was in flowing traffic."
+            else:
+                warning_text = "GAME OVER! The monster got the pedestrian."
             warning_surface = self.font.render(warning_text, True, RED)
             warning_rect = warning_surface.get_rect(center=(SCREEN_WIDTH//2, 150))
             surface.blit(warning_surface, warning_rect)

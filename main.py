@@ -91,7 +91,7 @@ class TrafficLightGame:
         )
         
         # Create game state manager
-        self.game_state = GameState(initial_lives=3)
+        self.game_state = GameState()
     
     def handle_events(self):
         """Handle game events."""
