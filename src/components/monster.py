@@ -44,14 +44,14 @@ class Monster:
         self.left_boundary = 50
         self.right_boundary = SCREEN_WIDTH - 50
         
-        # Appearance behavior - TESTING: Start visible
-        self.state = 'roaming'  # 'hidden', 'appearing', 'roaming', 'disappearing'
+        # Appearance behavior - Start hidden
+        self.state = 'hidden'  # 'hidden', 'appearing', 'roaming', 'disappearing'
         self.visibility_timer = 0
-        self.roam_duration = 300  # Frames to roam (5 seconds at 60 FPS)
-        self.hide_duration_min = 600  # Minimum frames to stay hidden (10 seconds)
-        self.hide_duration_max = 1800  # Maximum frames to stay hidden (30 seconds)
-        self.next_appearance_time = random.randint(self.hide_duration_min, self.hide_duration_max)
-        self.alpha = 255  # For fade in/out effects - TESTING: Start fully visible
+        self.roam_duration = 720  # Frames to roam (12 seconds at 60 FPS)
+        self.hide_duration = 600  # Frames to stay hidden (10 seconds at 60 FPS)
+        self.hide_timer = 0  # Track how long hidden
+        self.crossing_guard_delay = 0  # Additional delay when crossing guard is active
+        self.alpha = 0  # For fade in/out effects - Start hidden
         
         # Load monster sprites
         self.load_sprites()
@@ -199,12 +199,21 @@ class Monster:
                 self.animation_frame = (self.animation_frame + 1) % 2
             self.animation_timer = 0
         
-        # Update state machine - TESTING: Simplified to always roam
+        # Update state machine with proper timing and crossing guard awareness
         if self.state == 'hidden':
-            # TESTING: Force monster to appear immediately
-            self.state = 'roaming'
-            self.alpha = 255
-            self.current_animation = 'run'
+            self.hide_timer += 1
+            
+            # Check if crossing guard is active while hidden - add delay
+            if traffic_light.is_green():
+                self.crossing_guard_delay = 300  # Add 5 seconds delay (300 frames at 60 FPS)
+            
+            # Check if it's time to appear (including any crossing guard delay)
+            total_hide_time = self.hide_duration + self.crossing_guard_delay
+            if self.hide_timer >= total_hide_time:
+                self.state = 'appearing'
+                self.hide_timer = 0
+                self.crossing_guard_delay = 0  # Reset delay
+                self.current_animation = 'jump'  # Use jump animation for appearing
         
         elif self.state == 'appearing':
             self.alpha = min(255, self.alpha + 15)  # Fade in
@@ -214,7 +223,6 @@ class Monster:
                 self.current_animation = 'run'
         
         elif self.state == 'roaming':
-            # TESTING: Keep roaming continuously, ignore timer and traffic lights
             self.visibility_timer += 1
             
             # Move around
@@ -229,18 +237,18 @@ class Monster:
                     self.direction = 'right'
                     self.x = self.left_boundary
             
-            # TESTING: Comment out disappearing logic
-            # if (self.visibility_timer >= self.roam_duration or 
-            #     traffic_light.is_green()):  # Disappear if pedestrian crossing becomes active
-            #     self.state = 'disappearing'
-            #     self.current_animation = 'jump'
-            #     self.visibility_timer = 0
+            # Disappear after roaming for 5 seconds
+            if self.visibility_timer >= self.roam_duration:
+                self.state = 'disappearing'
+                self.current_animation = 'jump'
+                self.visibility_timer = 0
         
         elif self.state == 'disappearing':
-            # TESTING: Skip disappearing, go back to roaming
-            self.state = 'roaming'
-            self.alpha = 255
-            self.current_animation = 'run'
+            self.alpha = max(0, self.alpha - 15)  # Fade out
+            if self.alpha <= 0:
+                self.state = 'hidden'
+                self.hide_timer = 0
+                self.current_animation = 'idle'
         
         # Update rectangle position
         self.rect.centerx = self.x

@@ -210,17 +210,25 @@ class Pedestrian:
                 if self.sprites and 'walk' in self.sprites:
                     self.current_animation = 'walk'
             else:
-                # Finished crossing - resume normal walking on new sidewalk
+                # Finished crossing - check if reached bottom sidewalk
                 self.y = self.crossing_target_y  # Snap to exact position
-                self.state = 'walking'
+                
+                # Mark as completed crossing before potential removal
+                self.state = 'crossing_completed'  # Special state for GameState to detect
                 self.wants_to_cross = False
                 self.is_waiting_at_crossing = False
-                
-                # Choose a new random direction to walk on the new sidewalk
-                self.direction = random.choice(['left', 'right'])
-                
-                if self.sprites and 'walk' in self.sprites:
-                    self.current_animation = 'walk'
+        
+        elif self.state == 'crossing_completed':
+            # This state allows GameState to detect completion before removal
+            # If pedestrian reached bottom sidewalk, mark for removal
+            if self.crossing_target_y > self.original_sidewalk_y:  # Crossed from top to bottom
+                return False  # Signal for removal
+            
+            # Otherwise resume normal walking on new sidewalk (shouldn't happen in current one-way system)
+            self.state = 'walking'
+            self.direction = random.choice(['left', 'right'])
+            if self.sprites and 'walk' in self.sprites:
+                self.current_animation = 'walk'
         
         # Update rectangle position
         self.rect.centerx = self.x
@@ -364,7 +372,7 @@ class PedestrianManager:
             self.spawn_pedestrian()
     
     def spawn_pedestrian(self):
-        """Spawn a new pedestrian at a random edge of the screen."""
+        """Spawn a new pedestrian at a random edge of the top sidewalk only."""
         # Randomly choose left or right side to spawn
         if random.choice([True, False]):
             # Spawn from left side, moving right
@@ -375,8 +383,8 @@ class PedestrianManager:
             x = self.screen_width + 30
             direction = 'left'
         
-        # Randomly choose which sidewalk to spawn on
-        y = random.choice([self.top_sidewalk_y, self.bottom_sidewalk_y])
+        # Always spawn on top sidewalk only
+        y = self.top_sidewalk_y
         speed = random.uniform(0.5, 1.2)  # Random walking speed
         
         pedestrian = Pedestrian(x, y, direction, speed)
@@ -412,17 +420,14 @@ class PedestrianManager:
             if pedestrian.state == 'waiting_to_cross' and pedestrian.can_cross(crossing_guard_state):
                 pedestrian.state = 'crossing'
                 pedestrian.is_waiting_at_crossing = False  # No longer waiting
-                # Set target to opposite sidewalk
-                if pedestrian.y < self.road_y:  # Currently on top sidewalk
-                    pedestrian.crossing_target_y = self.bottom_sidewalk_y
-                else:  # Currently on bottom sidewalk
-                    pedestrian.crossing_target_y = self.top_sidewalk_y
+                # Set target to bottom sidewalk (one-way flow)
+                pedestrian.crossing_target_y = self.bottom_sidewalk_y
                 if pedestrian.sprites and 'walk' in pedestrian.sprites:
                     pedestrian.current_animation = 'walk'
             
             # Update pedestrian
             if not pedestrian.update(dt):
-                # Remove pedestrian if update returns False (off-screen)
+                # Remove pedestrian if update returns False (off-screen or finished crossing)
                 self.pedestrians.remove(pedestrian)
     
     def draw(self, surface):

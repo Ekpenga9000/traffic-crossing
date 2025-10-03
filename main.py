@@ -14,6 +14,7 @@ from src.components.crossing_guard import CrossingGuard
 from src.components.car import CarManager
 from src.components.monster import MonsterManager
 from src.components.pedestrian import PedestrianManager
+from src.components.game_state import GameState
 
 class TrafficLightGame:
     """
@@ -88,6 +89,9 @@ class TrafficLightGame:
             zebra_crossing_x=self.zebra_crossing_x,
             zebra_crossing_width=self.zebra_crossing_width
         )
+        
+        # Create game state manager
+        self.game_state = GameState(initial_lives=3)
     
     def handle_events(self):
         """Handle game events."""
@@ -98,8 +102,20 @@ class TrafficLightGame:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
                 elif event.key == pygame.K_SPACE:
-                    # Toggle traffic lights when space is pressed
-                    self.toggle_traffic_lights()
+                    if self.game_state.is_game_over():
+                        # Restart game if game over
+                        self.game_state.reset_game()
+                        # Reset pedestrian and monster managers
+                        self.pedestrian_manager = PedestrianManager(
+                            road_y=self.road.start_y,
+                            screen_width=SCREEN_WIDTH,
+                            screen_height=SCREEN_HEIGHT,
+                            zebra_crossing_x=self.zebra_crossing_x,
+                            zebra_crossing_width=self.zebra_crossing_width
+                        )
+                    else:
+                        # Toggle traffic lights when space is pressed
+                        self.toggle_traffic_lights()
     
     def toggle_traffic_lights(self):
         """Toggle the crossing guard state."""
@@ -129,6 +145,12 @@ class TrafficLightGame:
         # Update pedestrians with crossing guard state
         crossing_guard_state = 'walk' if self.crossing_guard.is_green() else 'stop'
         self.pedestrian_manager.update(dt, crossing_guard_state)
+        
+        # Update game state with collision detection
+        if not self.game_state.is_game_over():
+            pedestrians = self.pedestrian_manager.get_pedestrians()
+            monster = self.monster_manager.get_monty()
+            self.game_state.update(dt, pedestrians, monster, crossing_guard_state)
     
     def draw(self):
         """Draw the game."""
@@ -154,8 +176,11 @@ class TrafficLightGame:
         for light in self.traffic_lights:
             light.draw(self.screen)
         
-        # Draw pedestrians (on top of crossing guard)
+                # Draw pedestrians (render above crossing guard for proper z-index)
         self.pedestrian_manager.draw(self.screen)
+        
+        # Draw game state UI (lives, score, game over screen)
+        self.game_state.draw(self.screen)
         
         # Draw labels for traffic lights
         self.draw_traffic_light_labels()
